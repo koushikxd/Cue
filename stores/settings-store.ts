@@ -33,9 +33,14 @@ interface SettingsActions {
 
 type SettingsStore = SettingsState & SettingsActions;
 
+const isBrowser = () =>
+  typeof window !== "undefined" &&
+  typeof localStorage !== "undefined" &&
+  typeof localStorage.getItem === "function";
+
 export const useSettingsStore = create<SettingsStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       settings: defaultSettings,
 
       updateSettings: (updates) => {
@@ -51,6 +56,21 @@ export const useSettingsStore = create<SettingsStore>()(
     {
       name: "user-settings",
       version: 1,
+      storage: {
+        getItem: (name) => {
+          if (!isBrowser()) return null;
+          const value = localStorage.getItem(name);
+          return value ? JSON.parse(value) : null;
+        },
+        setItem: (name, value) => {
+          if (!isBrowser()) return;
+          localStorage.setItem(name, JSON.stringify(value));
+        },
+        removeItem: (name) => {
+          if (!isBrowser()) return;
+          localStorage.removeItem(name);
+        },
+      },
     }
   )
 );

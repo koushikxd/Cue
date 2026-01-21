@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 
+const isBrowser = () =>
+  typeof window !== "undefined" &&
+  typeof localStorage !== "undefined" &&
+  typeof localStorage.getItem === "function";
+
 export function useLocalStorage<T>(key: string, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(initialValue);
-
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
+    if (!isBrowser()) return;
 
     try {
       const item = localStorage.getItem(key);
       if (!item) return;
-
-      const parsed = JSON.parse(item, (key, value) => {
-        return value;
-      });
-
-      setStoredValue(parsed as T);
+      setStoredValue(JSON.parse(item) as T);
     } catch (error) {
       console.error("Failed to parse localStorage:", error);
     }
@@ -29,13 +29,8 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
           value instanceof Function ? value(storedValue) : value;
         setStoredValue(valueToStore);
 
-        if (isMounted) {
-          localStorage.setItem(
-            key,
-            JSON.stringify(valueToStore, (key, value) => {
-              return value;
-            })
-          );
+        if (isMounted && isBrowser()) {
+          localStorage.setItem(key, JSON.stringify(valueToStore));
         }
       } catch (error) {
         console.error("Failed to save to localStorage:", error);
