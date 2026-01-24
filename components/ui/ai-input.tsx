@@ -49,7 +49,6 @@ function AIInput({
 
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight,
-    maxHeight,
   });
 
   const commands = useMemo<Record<string, Command>>(
@@ -181,6 +180,13 @@ function AIInput({
         e.stopPropagation();
         onClose?.();
       }
+
+      // Handle Esc to close
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose?.();
+      }
     },
     [handleSubmit, onClose, handleTabCompletion]
   );
@@ -224,7 +230,7 @@ function AIInput({
         "max-w-xl w-full pr-10 py-4 placeholder:text-black/50 dark:placeholder:text-neutral-400",
         "border-none focus:ring-0 text-black dark:text-white resize-none text-wrap",
         "focus-visible:ring-0 focus-visible:ring-offset-0 leading-[1.2]",
-        `min-h-[${minHeight}px] transition-all duration-200`,
+        `min-h-[${minHeight}px] transition-all duration-200 scrollbar-hide`,
         aiDisabled && "pl-16"
       ),
     [minHeight, aiDisabled]
@@ -285,7 +291,7 @@ function AIInput({
           >
             <div className="flex flex-col">
               <div
-                className="overflow-y-auto px-4 cursor-text"
+                className="overflow-y-auto px-4 cursor-text scrollbar-hide"
                 style={{ maxHeight: `${maxHeight - 48}px` }}
                 onClick={handleTextareaClick}
               >

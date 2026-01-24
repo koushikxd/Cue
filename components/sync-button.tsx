@@ -60,7 +60,7 @@ export function SyncPopover({
         setSyncOpen(false);
       }
     },
-    [importTasks]
+    [importTasks],
   );
 
   return (
@@ -72,13 +72,13 @@ export function SyncPopover({
           data-sync-trigger
           className={cn(
             "px-2 bg-transparent border-0 shadow-none h-9 hover:cursor-pointer hover:bg-accent/30 hover:text-accent-foreground dark:text-neutral-400 dark:hover:text-foreground",
-            className
+            className,
           )}
         >
           <ArrowsClockwise
             className={cn(
               "h-4 w-4 transition-transform duration-200",
-              syncOpen && "rotate-90"
+              syncOpen && "rotate-180",
             )}
           />
         </Button>

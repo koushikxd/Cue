@@ -66,7 +66,7 @@ function HomePage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-end justify-center backdrop-blur-sm"
+              className="fixed inset-0 z-50 flex items-end justify-center"
               onClick={handleClose}
             >
               <div
@@ -96,8 +96,9 @@ function HomePage() {
       </div>
 
       <div
-        className={`flex-1 w-full max-w-md mx-auto px-4 pt-3 ${isInputVisible ? "pb-[130px]" : "pb-6"
-          } bg-neutral-900 overflow-hidden`}
+        className={`flex-1 w-full max-w-md mx-auto px-4 pt-3 ${
+          isInputVisible ? "pb-[130px]" : "pb-6"
+        } bg-neutral-900 overflow-hidden`}
       >
         <Task isMobile={isMobile} onDateChange={setCurrentSelectedDate} />
       </div>

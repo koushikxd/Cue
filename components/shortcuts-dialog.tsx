@@ -56,9 +56,9 @@ export function ShortcutsDialog({
       description: "Focus the AI input",
     },
     {
-      title: "Cancel",
+      title: "Close",
       keys: <span>Esc</span>,
-      description: "Cancel editing",
+      description: "Close input",
     },
     {
       title: "View Toggle",
