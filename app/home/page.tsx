@@ -233,7 +233,7 @@ export default function HomePage() {
               <span className="text-neutral-600">•</span>
 
               <Link
-                href="https://github.com/koushikyemula/cue"
+                href="https://github.com/koushikxd/cue"
                 className="flex items-center gap-2 text-neutral-400 text-sm hover:text-white transition-colors"
                 target="_blank"
                 rel="noopener noreferrer"
