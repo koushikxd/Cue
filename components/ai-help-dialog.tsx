@@ -19,8 +19,10 @@ import {
   CalendarIcon,
   CheckCircle2Icon,
   EditIcon,
+  ExternalLinkIcon,
   FileDownIcon,
   InfoIcon,
+  KeyIcon,
   ListIcon,
   PlusIcon,
   SortAscIcon,
@@ -97,6 +99,30 @@ export function AIHelpDialog({
     },
   ];
 
+  const ApiKeyBanner = () => (
+    <div className="mb-4 p-3 bg-neutral-800/50 border border-neutral-700/50 rounded-lg">
+      <div className="flex items-start gap-2.5">
+        <KeyIcon className="h-4 w-4 text-neutral-400 mt-0.5 shrink-0" />
+        <div className="space-y-1.5">
+          <p className="text-xs text-neutral-300">
+            AI features require your own Groq API key. Add it in{" "}
+            <span className="font-medium text-neutral-200">Settings</span> to
+            get started.
+          </p>
+          <a
+            href="https://console.groq.com/keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-neutral-200 transition-colors"
+          >
+            Get a free Groq API key
+            <ExternalLinkIcon className="h-3 w-3" />
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+
   const ActionsList = () => (
     <div
       className={`grid ${
@@ -152,6 +178,7 @@ export function AIHelpDialog({
           </DrawerHeader>
 
           <div className="px-4 pb-6">
+            <ApiKeyBanner />
             <ActionsList />
             <FooterNote />
           </div>
@@ -176,6 +203,7 @@ export function AIHelpDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <ApiKeyBanner />
         <ActionsList />
         <FooterNote />
       </DialogContent>

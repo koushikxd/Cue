@@ -104,7 +104,7 @@ export const useTaskStore = create<TaskStore>()(
       try {
         set({ isLoading: true, error: null });
 
-        if (!userSettings.aiEnabled) {
+        if (!userSettings.aiEnabled || !userSettings.groqApiKey) {
           const newTask = serializeTask({
             id: generateId(),
             text,
@@ -113,7 +113,6 @@ export const useTaskStore = create<TaskStore>()(
             priority: userSettings.defaultPriority,
           });
 
-          // Sync with Google Calendar if enabled
           if (
             userSettings.syncWithGoogleCalendar &&
             googleCalendar.isSignedIn &&
@@ -135,8 +134,9 @@ export const useTaskStore = create<TaskStore>()(
         const { actions } = await determineAction(
           text,
           get().tasks,
-          "llama-3.3",
-          timezone
+          userSettings.defaultModel || "llama-3.1-8b",
+          timezone,
+          userSettings.groqApiKey
         );
 
         let newTasks = [...get().tasks];

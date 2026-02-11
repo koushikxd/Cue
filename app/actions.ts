@@ -2,15 +2,19 @@
 
 import { generateObject } from "ai";
 import { z } from "zod";
-import { llm } from "@/lib/models";
+import { createLLM } from "@/lib/models";
 import { DetermineActionFn } from "@/types/actions";
 
 export const determineAction: DetermineActionFn = async (
   text,
   tasks,
-  model = "qwen-2.5",
-  timezone = "UTC"
+  model = "llama-3.1-8b",
+  timezone = "UTC",
+  apiKey
 ) => {
+  if (!apiKey) {
+    throw new Error("Groq API key is required. Add your key in Settings.");
+  }
   function getDateInTimezone(timezone: string) {
     const now = new Date();
     const options: Intl.DateTimeFormatOptions = {
@@ -202,6 +206,8 @@ export const determineAction: DetermineActionFn = async (
   - ALWAYS use taskId for edit/mark/delete actions.
   - NEVER create a new task when modifying an existing one.
   `;
+
+  const llm = createLLM(apiKey);
 
   const { object: action, usage } = await generateObject({
     model: llm.languageModel(model),

@@ -19,5 +19,6 @@ export type DetermineActionFn = (
   text: string,
   tasks?: TaskItem[],
   model?: Model,
-  timezone?: string
+  timezone?: string,
+  apiKey?: string
 ) => Promise<DetermineActionResponse>;

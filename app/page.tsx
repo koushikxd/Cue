@@ -22,6 +22,8 @@ function HomePage() {
   const { processAIActions } = useTaskStoreWithPersistence();
   const googleCalendar = useGoogleCalendar();
 
+  const aiDisabled = !settings.aiEnabled || !settings.groqApiKey;
+
   useHotkeys("meta+k, ctrl+k", (e) => {
     e.preventDefault();
     setIsInputVisible((prev) => !prev);
@@ -79,7 +81,7 @@ function HomePage() {
                   onSubmit={(text) => handleSubmit(text, handleClose)}
                   onClose={handleClose}
                   isMobile={false}
-                  aiDisabled={!settings.aiEnabled}
+                  aiDisabled={aiDisabled}
                 />
               </div>
             </motion.div>
@@ -119,8 +121,8 @@ function HomePage() {
                 onClose={handleClose}
                 onSubmit={handleSubmit}
                 isMobile={isMobile}
-                aiDisabled={!settings.aiEnabled}
-                className={settings.aiEnabled ? "" : "ai-disabled"}
+                aiDisabled={aiDisabled}
+                className={aiDisabled ? "ai-disabled" : ""}
               />
             </div>
           </motion.div>

@@ -16,8 +16,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ListRestart, Settings } from "lucide-react";
+import { Eye, EyeOff, ExternalLink, ListRestart, Settings } from "lucide-react";
+import { modelOptions } from "@/lib/models";
 import { useSettingsStore, defaultSettings } from "@/stores/settings-store";
 import { useGoogleCalendar } from "@/hooks/use-google-calendar";
 import { toast } from "sonner";
@@ -32,6 +34,7 @@ export function SettingsPopover({
   className,
 }: SettingsPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
   const { settings, updateSettings, resetSettings } = useSettingsStore();
   const { hasGoogleConnected } = useGoogleCalendar();
 
@@ -124,6 +127,87 @@ export function SettingsPopover({
               }
             />
           </div>
+          {settings.aiEnabled && (
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <Label htmlFor="groq-api-key" className="text-xs">
+                  Groq API Key
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Required for AI features
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <Input
+                    id="groq-api-key"
+                    type={showApiKey ? "text" : "password"}
+                    value={settings.groqApiKey}
+                    onChange={(e) =>
+                      updateSettings({ groqApiKey: e.target.value })
+                    }
+                    placeholder="gsk_..."
+                    className="h-8 text-xs pr-8 font-mono"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-8 w-8 hover:bg-transparent text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                  >
+                    {showApiKey ? (
+                      <EyeOff className="h-3.5 w-3.5" />
+                    ) : (
+                      <Eye className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              <a
+                href="https://console.groq.com/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Get your free API key
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              {settings.groqApiKey && (
+                <div className="flex items-center justify-between pt-1">
+                  <div className="space-y-1">
+                    <Label htmlFor="default-model" className="text-xs">
+                      AI Model
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Model used for task processing
+                    </p>
+                  </div>
+                  <Select
+                    value={settings.defaultModel}
+                    onValueChange={(value) =>
+                      handleSelectChange(value, "defaultModel")
+                    }
+                  >
+                    <SelectTrigger className="max-w-[120px] w-full cursor-pointer h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      {modelOptions.map((model) => (
+                        <SelectItem
+                          key={model.id}
+                          value={model.id}
+                          className="cursor-pointer hover:bg-accent/30"
+                        >
+                          {model.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <Label htmlFor="auto-remove-completed" className="text-xs">
