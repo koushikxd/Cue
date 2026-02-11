@@ -8,7 +8,7 @@ import AiInput from "@/components/ui/ai-input";
 import { useGoogleCalendar, useMediaQuery } from "@/hooks";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useTaskStoreWithPersistence } from "@/stores/task-store";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 

@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/task";
 import { useSettingsStore } from "@/stores/settings-store";
 import { TaskItem } from "@/types";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import {
   AlertCircle,
   CheckCheck,
@@ -64,7 +64,7 @@ const PriorityBadge = ({
     <div
       className={cn(
         "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium",
-        config?.color
+        config?.color,
       )}
     >
       <span className={cn("w-1.5 h-1.5 rounded-full", config?.dot)} />
@@ -92,7 +92,7 @@ const TaskStatusIndicator = ({
       <span
         className={cn(
           "text-sm font-medium",
-          completed ? "text-green-500" : "text-muted-foreground"
+          completed ? "text-green-500" : "text-muted-foreground",
         )}
       >
         {completed ? "Completed" : "Pending"}
@@ -205,7 +205,7 @@ export function TaskDetailPopover({
                 <p
                   className={cn(
                     "text-sm leading-relaxed break-words whitespace-pre-line p-3 rounded-lg bg-neutral-800/50 border border-neutral-700/30",
-                    task.completed && "line-through text-neutral-500"
+                    task.completed && "line-through text-neutral-500",
                   )}
                 >
                   {task.text}
@@ -279,7 +279,7 @@ export function TaskDetailPopover({
                       "w-full font-medium transition-all",
                       task.completed
                         ? "border-neutral-600 text-neutral-300 hover:bg-neutral-700/50"
-                        : "bg-green-600 hover:bg-green-700 text-white"
+                        : "bg-green-600 hover:bg-green-700 text-white",
                     )}
                     onClick={(e) => {
                       e.stopPropagation();

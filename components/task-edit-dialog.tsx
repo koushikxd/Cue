@@ -28,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TimePicker } from "@/components/ui/time-picker";
 import { cn } from "@/lib/utils";
 import { TaskItem } from "@/types";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface TaskEditDialogProps {
@@ -69,7 +69,7 @@ function TaskEditForm({
     "high" | "medium" | "low" | undefined
   >(task.priority);
   const [editDescription, setEditDescription] = useState(
-    task.description || ""
+    task.description || "",
   );
   const [isLoading, setIsLoading] = useState(false);
 
@@ -113,7 +113,7 @@ function TaskEditForm({
         onCancel();
       }
     },
-    [handleSave, onCancel]
+    [handleSave, onCancel],
   );
 
   return (
@@ -139,7 +139,7 @@ function TaskEditForm({
           placeholder="Enter task description..."
           className={cn(
             "w-full text-base font-normal bg-background border border-border/20 shadow-sm focus-visible:ring-1 focus-visible:ring-primary",
-            inDrawer ? "h-12" : "h-11"
+            inDrawer ? "h-12" : "h-11",
           )}
         />
       </div>
@@ -147,7 +147,7 @@ function TaskEditForm({
       <div
         className={cn(
           "grid gap-4",
-          inDrawer ? "grid-cols-1 gap-4" : "grid-cols-2 gap-4"
+          inDrawer ? "grid-cols-1 gap-4" : "grid-cols-2 gap-4",
         )}
       >
         <div className="space-y-2">
@@ -157,7 +157,7 @@ function TaskEditForm({
             onChange={setEditTime}
             className={cn(
               "w-full justify-start border border-border/20 cursor-pointer bg-neutral-800/95 hover:bg-accent/50",
-              inDrawer ? "h-12" : "h-[37px]"
+              inDrawer ? "h-12" : "h-[37px]",
             )}
           />
         </div>
@@ -172,14 +172,14 @@ function TaskEditForm({
               setEditPriority(
                 value === "none"
                   ? undefined
-                  : (value as "high" | "medium" | "low")
+                  : (value as "high" | "medium" | "low"),
               )
             }
           >
             <SelectTrigger
               className={cn(
                 "w-full bg-background cursor-pointer border border-border/20 transition-all duration-200 hover:border-border/30 focus:border-border/40 focus:ring-0 focus:ring-offset-0",
-                inDrawer ? "h-12" : "h-10"
+                inDrawer ? "h-12" : "h-10",
               )}
             >
               <SelectValue placeholder="Select priority" />
@@ -227,7 +227,7 @@ function TaskEditForm({
           placeholder="Add a description or additional details..."
           className={cn(
             "w-full min-h-[80px] resize-none text-sm bg-neutral-800/95 border border-border/20 shadow-sm focus-visible:ring-1 focus-visible:ring-primary",
-            inDrawer && "min-h-[100px]"
+            inDrawer && "min-h-[100px]",
           )}
         />
       </div>
@@ -241,7 +241,7 @@ function TaskEditForm({
           disabled={isLoading}
           className={cn(
             "font-medium border-border/20 text-muted-foreground hover:bg-muted/50",
-            inDrawer ? "h-12 w-full" : "px-4"
+            inDrawer ? "h-12 w-full" : "px-4",
           )}
         >
           Cancel
@@ -251,7 +251,7 @@ function TaskEditForm({
           disabled={!editText.trim() || isLoading}
           className={cn(
             "font-medium bg-primary hover:bg-primary/90",
-            inDrawer ? "h-12 w-full" : "px-4"
+            inDrawer ? "h-12 w-full" : "px-4",
           )}
         >
           {isLoading ? "Saving..." : "Save"}
@@ -288,7 +288,7 @@ export function TaskEditDialog({
       await onSave(updatedTask);
       onOpenChange(false);
     },
-    [onSave, onOpenChange]
+    [onSave, onOpenChange],
   );
 
   const handleCancel = useCallback(() => {

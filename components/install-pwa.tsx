@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Download, Share, X } from "lucide-react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useMediaQuery } from "@/hooks";
@@ -12,11 +12,11 @@ export function InstallPWA({ promptDelay = 1500 }: { promptDelay?: number }) {
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
   const [isDismissed, setIsDismissed] = useLocalStorage(
     "installPromptDismissed",
-    false
+    false,
   );
   const [lastPromptDate, setLastPromptDate] = useLocalStorage(
     "lastPromptDate",
-    0
+    0,
   );
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export function InstallPWA({ promptDelay = 1500 }: { promptDelay?: number }) {
     return () => {
       window.removeEventListener(
         "beforeinstallprompt",
-        handleBeforeInstallPrompt
+        handleBeforeInstallPrompt,
       );
     };
   }, [isDismissed, lastPromptDate, promptDelay, isDesktop, setIsDismissed]);

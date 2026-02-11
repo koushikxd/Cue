@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 export default function PrivacyPolicy() {
   return (

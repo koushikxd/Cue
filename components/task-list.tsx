@@ -12,7 +12,7 @@ import { TimePicker, formatTimeDisplay } from "@/components/ui/time-picker";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/task";
 import { TaskItem } from "@/types";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { AlertCircle, Clock, ExternalLink, Pencil, X } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -30,13 +30,13 @@ const PriorityIndicator = memo(
       <div
         className={cn(
           "text-xs px-1.5 py-0.5 border capitalize",
-          styleMap[priority]
+          styleMap[priority],
         )}
       >
         {priority}
       </div>
     );
-  }
+  },
 );
 PriorityIndicator.displayName = "PriorityIndicator";
 
@@ -92,7 +92,7 @@ const TaskEditForm = memo(
           }
         });
       },
-      [setEditText]
+      [setEditText],
     );
 
     const handleKeyDown = useCallback(
@@ -108,7 +108,7 @@ const TaskEditForm = memo(
           cancelEditing();
         }
       },
-      [task, editText, editTime, editPriority, handleEditTask, cancelEditing]
+      [task, editText, editTime, editPriority, handleEditTask, cancelEditing],
     );
 
     const handleSave = useCallback(() => {
@@ -151,7 +151,7 @@ const TaskEditForm = memo(
               setEditPriority(
                 value === "none"
                   ? undefined
-                  : (value as "high" | "medium" | "low")
+                  : (value as "high" | "medium" | "low"),
               )
             }
           >
@@ -217,7 +217,7 @@ const TaskEditForm = memo(
         </div>
       </motion.div>
     );
-  }
+  },
 );
 TaskEditForm.displayName = "TaskEditForm";
 
@@ -250,7 +250,7 @@ export const TextWithLinks = memo(
                 "text-primary hover:underline inline-flex items-center gap-0.5 transition-colors max-w-[200px]",
                 isCompleted
                   ? "text-muted-foreground/60 hover:text-muted-foreground/80"
-                  : "hover:text-primary/80"
+                  : "hover:text-primary/80",
               )}
             >
               <span className="truncate">{url}</span>
@@ -260,7 +260,7 @@ export const TextWithLinks = memo(
         })}
       </>
     );
-  }
+  },
 );
 TextWithLinks.displayName = "TextWithLinks";
 
@@ -336,8 +336,8 @@ export function TaskList({
   };
 
   const animationTransition = {
-    type: "tween",
-    ease: "easeInOut",
+    type: "tween" as const,
+    ease: "easeInOut" as const,
     duration: 0.2,
   };
 
@@ -366,7 +366,7 @@ export function TaskList({
                   : "hover:bg-muted/40",
                 editingTaskId === task.id && "bg-muted/60",
                 isPending && "border-l-2 border-l-yellow-500/60",
-                "transition-colors"
+                "transition-colors",
               )}
             >
               {editingTaskId === task.id ? (
@@ -395,8 +395,8 @@ export function TaskList({
                         task.completed
                           ? "border-muted-foreground/50 bg-muted-foreground/20"
                           : isPending
-                          ? "border-yellow-500/50 hover:border-yellow-500"
-                          : "hover:border-primary/50"
+                            ? "border-yellow-500/50 hover:border-yellow-500"
+                            : "hover:border-primary/50",
                       )}
                     />
                   </motion.div>
@@ -414,7 +414,7 @@ export function TaskList({
                         className={cn(
                           "text-[15px] transition-colors duration-100 break-words whitespace-pre-line",
                           task.completed &&
-                            "line-through text-muted-foreground/50"
+                            "line-through text-muted-foreground/50",
                         )}
                       >
                         <TextWithLinks
@@ -456,7 +456,7 @@ export function TaskList({
                         "h-7 w-7 text-muted-foreground cursor-pointer hover:text-foreground  ",
                         isMobile
                           ? "opacity-80"
-                          : "opacity-0 group-hover:opacity-80 transition-opacity"
+                          : "opacity-0 group-hover:opacity-80 transition-opacity",
                       )}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -472,7 +472,7 @@ export function TaskList({
                         "h-7 w-7 text-muted-foreground cursor-pointer hover:text-destructive  ",
                         isMobile
                           ? "opacity-80"
-                          : "opacity-0 group-hover:opacity-80 transition-opacity"
+                          : "opacity-0 group-hover:opacity-80 transition-opacity",
                       )}
                       onClick={(e) => {
                         e.stopPropagation();

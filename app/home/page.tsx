@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Github, Sparkles, Zap, Shield, Brain } from "lucide-react";
@@ -24,7 +24,7 @@ export default function HomePage() {
       y: 0,
       transition: {
         duration: 0.6,
-        ease: [0.25, 0.25, 0, 1],
+        ease: [0.25, 0.25, 0, 1] as [number, number, number, number],
       },
     },
   };

@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAutoResizeTextarea } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { ArrowElbowRightUp } from "@phosphor-icons/react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 type Command = {
@@ -72,7 +72,7 @@ function AIInput({
         },
       },
     }),
-    [adjustHeight]
+    [adjustHeight],
   );
 
   const commandNames = useMemo(() => Object.keys(commands), [commands]);
@@ -153,7 +153,7 @@ function AIInput({
         e.preventDefault();
 
         const matchingCommands = commandNames.filter(
-          (cmd) => cmd.startsWith(inputValue) && cmd !== inputValue
+          (cmd) => cmd.startsWith(inputValue) && cmd !== inputValue,
         );
 
         if (matchingCommands.length > 0) {
@@ -161,7 +161,7 @@ function AIInput({
         }
       }
     },
-    [inputValue, commandNames]
+    [inputValue, commandNames],
   );
 
   const handleKeyDown = useCallback(
@@ -188,7 +188,7 @@ function AIInput({
         onClose?.();
       }
     },
-    [handleSubmit, onClose, handleTabCompletion]
+    [handleSubmit, onClose, handleTabCompletion],
   );
 
   const handleInputChange = useCallback(
@@ -202,12 +202,12 @@ function AIInput({
         adjustHeight();
       }
     },
-    [adjustHeight]
+    [adjustHeight],
   );
 
   const containerClass = useMemo(
     () => cn("w-full py-4 px-4 sm:px-0 pointer-events-auto", className),
-    [className]
+    [className],
   );
 
   const inputContainerClass = useMemo(
@@ -219,9 +219,9 @@ function AIInput({
           ? "border-black/30 dark:border-white/30 shadow-sm"
           : "border-black/10 dark:border-white/10",
         " bg-black/[0.03] dark:bg-neutral-900",
-        aiDisabled && "dark:border-neutral-700/50"
+        aiDisabled && "dark:border-neutral-700/50",
       ),
-    [isFocused, aiDisabled]
+    [isFocused, aiDisabled],
   );
 
   const textareaClass = useMemo(
@@ -231,27 +231,27 @@ function AIInput({
         "border-none focus:ring-0 text-black dark:text-white resize-none text-wrap",
         "focus-visible:ring-0 focus-visible:ring-offset-0 leading-[1.2]",
         `min-h-[${minHeight}px] transition-all duration-200 scrollbar-hide`,
-        aiDisabled && "pl-16"
+        aiDisabled && "pl-16",
       ),
-    [minHeight, aiDisabled]
+    [minHeight, aiDisabled],
   );
 
   const submitButtonClass = useMemo(
     () =>
       cn(
         "absolute right-3 top-1/2 -translate-y-1/2 py-1 px-1",
-        submitted ? "bg-none" : "bg-black/5 dark:bg-neutral-800"
+        submitted ? "bg-none" : "bg-black/5 dark:bg-neutral-800",
       ),
-    [submitted]
+    [submitted],
   );
 
   const iconClass = useMemo(
     () =>
       cn(
         "w-4 h-4 transition-opacity dark:text-white",
-        inputValue ? "opacity-100" : "opacity-30"
+        inputValue ? "opacity-100" : "opacity-30",
       ),
-    [inputValue]
+    [inputValue],
   );
 
   const handleTextareaClick = useCallback(
@@ -262,7 +262,7 @@ function AIInput({
         textareaRef.current.focus();
       }
     },
-    [submitted, textareaRef]
+    [submitted, textareaRef],
   );
 
   return (
