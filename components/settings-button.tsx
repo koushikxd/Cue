@@ -22,6 +22,7 @@ import { Eye, EyeOff, ExternalLink, ListRestart, Settings } from "lucide-react";
 import { modelOptions } from "@/lib/models";
 import { useSettingsStore, defaultSettings } from "@/stores/settings-store";
 import { useGoogleCalendar } from "@/hooks/use-google-calendar";
+import { useAuth } from "@clerk/nextjs";
 import { toast } from "sonner";
 
 interface SettingsPopoverProps {
@@ -36,6 +37,7 @@ export function SettingsPopover({
   const [isOpen, setIsOpen] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const { settings, updateSettings, resetSettings } = useSettingsStore();
+  const { isSignedIn } = useAuth();
   const { hasGoogleConnected } = useGoogleCalendar();
 
   const handleSwitchChange = useCallback(
@@ -243,24 +245,45 @@ export function SettingsPopover({
             />
           </div>
           {hasGoogleConnected() && (
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <Label htmlFor="sync-with-google-calendar" className="text-xs">
-                  Sync with Google Calendar
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Sync tasks with Google Calendar
-                </p>
+            <>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label htmlFor="sync-with-google-calendar" className="text-xs">
+                    Sync with Google Calendar
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Sync tasks with Google Calendar
+                  </p>
+                </div>
+                <Switch
+                  id="sync-with-google-calendar"
+                  checked={settings.syncWithGoogleCalendar}
+                  disabled={!hasGoogleConnected()}
+                  onCheckedChange={(checked) =>
+                    handleSwitchChange(checked, "syncWithGoogleCalendar")
+                  }
+                />
               </div>
-              <Switch
-                id="sync-with-google-calendar"
-                checked={settings.syncWithGoogleCalendar}
-                disabled={!hasGoogleConnected()}
-                onCheckedChange={(checked) =>
-                  handleSwitchChange(checked, "syncWithGoogleCalendar")
-                }
-              />
-            </div>
+              {isSignedIn && settings.syncWithGoogleCalendar && (
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label htmlFor="pull-all-events" className="text-xs">
+                      Pull All Calendar Events
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Import all events, not just Cue tasks
+                    </p>
+                  </div>
+                  <Switch
+                    id="pull-all-events"
+                    checked={settings.pullAllCalendarEvents}
+                    onCheckedChange={(checked) =>
+                      handleSwitchChange(checked, "pullAllCalendarEvents")
+                    }
+                  />
+                </div>
+              )}
+            </>
           )}
           <div className="flex items-center justify-between">
             <div className="space-y-1">

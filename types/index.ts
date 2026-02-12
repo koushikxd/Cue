@@ -12,6 +12,15 @@ export interface TaskItem {
   syncedWithGCal?: boolean;
 }
 
+export interface SyncQueueItem {
+  id: string;
+  operation: "create" | "update" | "delete";
+  taskId: string;
+  taskData?: TaskItem;
+  gcalEventId?: string;
+  timestamp: number;
+}
+
 export type SortOption =
   | "newest"
   | "oldest"

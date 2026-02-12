@@ -11,7 +11,11 @@ import { useGoogleCalendar } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { serializeTask, sortTasks } from "@/lib/utils/task";
 import { useSettingsStore } from "@/stores/settings-store";
-import { useTaskStoreWithPersistence } from "@/stores/task-store";
+import {
+  syncDelete,
+  syncUpdate,
+  useTaskStoreWithPersistence,
+} from "@/stores/task-store";
 import type { TaskItem } from "@/types";
 import { CaretLeft, CaretRight, Plus } from "@phosphor-icons/react";
 import {
@@ -57,6 +61,14 @@ interface CalendarViewProps {
   onDateChange?: (date: Date) => void;
   onNewTaskClick?: (date: Date) => void;
   isMobile: boolean;
+  sync?: {
+    isOnline: boolean;
+    isSyncing: boolean;
+    pendingCount: number;
+    lastSyncTime: Date | null;
+    syncNow: () => Promise<void>;
+    refreshPendingCount: () => Promise<void>;
+  };
 }
 
 const colStartClasses = [
@@ -157,6 +169,7 @@ function CalendarView({
   onDateChange,
   onNewTaskClick,
   isMobile,
+  sync,
 }: CalendarViewProps) {
   const { settings } = useSettingsStore();
 
@@ -321,15 +334,12 @@ function CalendarView({
         });
 
         if (
-          settings.syncWithGoogleCalendar &&
-          googleCalendar.isSignedIn &&
-          googleCalendar.hasGoogleConnected() &&
           task.gcalEventId &&
           (task.text !== updatedTask.text ||
             task.scheduled_time !== updatedTask.scheduled_time ||
             task.priority !== updatedTask.priority)
         ) {
-          await googleCalendar.updateEvent(finalTask, task.gcalEventId);
+          await syncUpdate(finalTask, googleCalendar, settings);
         }
 
         await updateTask(updatedTask.id, finalTask);
@@ -353,15 +363,12 @@ function CalendarView({
       if (!task) return;
 
       if (
-        settings.syncWithGoogleCalendar &&
-        googleCalendar.isSignedIn &&
-        googleCalendar.hasGoogleConnected() &&
         task.gcalEventId &&
         (task.text !== updatedTask.text ||
           task.scheduled_time !== updatedTask.scheduled_time ||
           task.priority !== updatedTask.priority)
       ) {
-        await googleCalendar.updateEvent(updatedTask, task.gcalEventId);
+        await syncUpdate(updatedTask, googleCalendar, settings);
       }
 
       await updateTask(updatedTask.id, {
@@ -376,14 +383,7 @@ function CalendarView({
     async (taskId: string) => {
       const taskToDelete = tasks.find((task) => task.id === taskId);
 
-      if (
-        taskToDelete?.gcalEventId &&
-        settings.syncWithGoogleCalendar &&
-        googleCalendar.isSignedIn &&
-        googleCalendar.hasGoogleConnected()
-      ) {
-        await googleCalendar.deleteEvent(taskToDelete.gcalEventId);
-      }
+      await syncDelete(taskToDelete?.gcalEventId, taskId, googleCalendar, settings);
 
       await deleteTask(taskId);
     },
@@ -404,13 +404,8 @@ function CalendarView({
           updated_at: new Date(),
         };
 
-        if (
-          task.gcalEventId &&
-          settings.syncWithGoogleCalendar &&
-          googleCalendar.isSignedIn &&
-          googleCalendar.hasGoogleConnected()
-        ) {
-          googleCalendar.updateEvent(updatedTask, task.gcalEventId);
+        if (task.gcalEventId) {
+          await syncUpdate(updatedTask, googleCalendar, settings);
         }
 
         await toggleTask(taskId);
@@ -774,7 +769,7 @@ function CalendarView({
           </Button>
 
           <div className="flex gap-3">
-            <SyncPopover />
+            <SyncPopover sync={sync} />
             <SettingsPopover isMobile={isMobile} />
           </div>
         </div>

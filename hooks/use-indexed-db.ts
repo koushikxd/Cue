@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Dexie from "dexie";
-import { TaskItem } from "@/types";
+import { TaskItem, SyncQueueItem } from "@/types";
 import { serializeTask } from "@/lib/utils/task";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ const TaskArraySchema = z.array(TaskItemSchema);
 
 class AppDatabase extends Dexie {
   tasks: Dexie.Table<TaskItem, string>;
+  syncQueue: Dexie.Table<SyncQueueItem, string>;
 
   constructor() {
     super("cue-db");
@@ -41,17 +42,39 @@ class AppDatabase extends Dexie {
         "id, text, completed, date, created_at, updated_at, scheduled_time, priority",
     });
 
-    // Version 2: Added Google Calendar sync fields
     this.version(2).stores({
       tasks:
         "id, text, completed, date, created_at, updated_at, scheduled_time, priority, gcalEventId, syncedWithGCal",
     });
 
+    this.version(3).stores({
+      tasks:
+        "id, text, completed, date, created_at, updated_at, scheduled_time, priority, gcalEventId, syncedWithGCal",
+      syncQueue: "id, operation, taskId, timestamp",
+    });
+
     this.tasks = this.table("tasks");
+    this.syncQueue = this.table("syncQueue");
   }
 }
 
-const db = new AppDatabase();
+export const db = new AppDatabase();
+
+export async function addToSyncQueue(item: SyncQueueItem) {
+  await db.syncQueue.put(item);
+}
+
+export async function getSyncQueue(): Promise<SyncQueueItem[]> {
+  return db.syncQueue.orderBy("timestamp").toArray();
+}
+
+export async function clearSyncQueue() {
+  await db.syncQueue.clear();
+}
+
+export async function removeSyncQueueItem(id: string) {
+  await db.syncQueue.delete(id);
+}
 
 export function useIndexedDB<T>(storeName: string, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(initialValue);

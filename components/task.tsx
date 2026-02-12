@@ -16,7 +16,11 @@ import { Progress } from "./progress";
 import { TaskList } from "./task-list";
 import { Calendar } from "./ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { useTaskStoreWithPersistence } from "@/stores/task-store";
+import {
+  syncDelete,
+  syncUpdate,
+  useTaskStoreWithPersistence,
+} from "@/stores/task-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useGoogleCalendar } from "@/hooks";
 
@@ -77,8 +81,7 @@ export default function Task({ isMobile = false, onDateChange }: TaskProps) {
   const { tasks, toggleTask, deleteTask, updateTask } =
     useTaskStoreWithPersistence();
   const { settings } = useSettingsStore();
-  const { isSignedIn, hasGoogleConnected, updateEvent, deleteEvent } =
-    useGoogleCalendar();
+  const googleCalendar = useGoogleCalendar();
 
   const [viewState, dispatch] = useReducer(
     (
@@ -154,26 +157,11 @@ export default function Task({ isMobile = false, onDateChange }: TaskProps) {
     async (id: string) => {
       const taskToDelete = tasks.find((task) => task.id === id);
 
-      // Delete from Google Calendar if synced
-      if (
-        settings.syncWithGoogleCalendar &&
-        isSignedIn &&
-        hasGoogleConnected() &&
-        taskToDelete?.gcalEventId
-      ) {
-        await deleteEvent(taskToDelete.gcalEventId);
-      }
+      await syncDelete(taskToDelete?.gcalEventId, id, googleCalendar, settings);
 
       await deleteTask(id);
     },
-    [
-      tasks,
-      settings.syncWithGoogleCalendar,
-      isSignedIn,
-      hasGoogleConnected,
-      deleteEvent,
-      deleteTask,
-    ]
+    [tasks, googleCalendar, settings, deleteTask]
   );
 
   const handleToggleTask = useCallback(
@@ -220,15 +208,12 @@ export default function Task({ isMobile = false, onDateChange }: TaskProps) {
         });
 
         if (
-          settings.syncWithGoogleCalendar &&
-          isSignedIn &&
-          hasGoogleConnected() &&
           task.gcalEventId &&
           (task.text !== updatedTask.text ||
             task.scheduled_time !== updatedTask.scheduled_time ||
             task.priority !== updatedTask.priority)
         ) {
-          await updateEvent(finalTask, task.gcalEventId);
+          await syncUpdate(finalTask, googleCalendar, settings);
         }
 
         await updateTask(updatedTask.id, finalTask);
@@ -241,10 +226,8 @@ export default function Task({ isMobile = false, onDateChange }: TaskProps) {
       tasks,
       updateTask,
       cancelEditing,
-      settings.syncWithGoogleCalendar,
-      isSignedIn,
-      hasGoogleConnected,
-      updateEvent,
+      googleCalendar,
+      settings,
     ]
   );
 

@@ -1,5 +1,5 @@
 import { determineAction } from "@/app/actions";
-import { useIndexedDB } from "@/hooks/use-indexed-db";
+import { useIndexedDB, addToSyncQueue } from "@/hooks/use-indexed-db";
 import { serializeTask } from "@/lib/utils/task";
 import { TaskItem } from "@/types";
 import { format } from "date-fns";
@@ -39,8 +39,81 @@ interface TaskActions {
 
 type TaskStore = TaskState & TaskActions;
 
-// Helper to generate unique IDs
 const generateId = () => Math.random().toString(36).substring(7);
+
+const canGoogleSync = (googleCalendar: any, userSettings: any) =>
+  userSettings.syncWithGoogleCalendar &&
+  googleCalendar.isSignedIn &&
+  googleCalendar.hasGoogleConnected();
+
+export async function syncCreate(
+  task: TaskItem,
+  googleCalendar: any,
+  userSettings: any
+): Promise<TaskItem> {
+  if (!canGoogleSync(googleCalendar, userSettings)) return task;
+
+  if (typeof navigator !== "undefined" && navigator.onLine) {
+    const eventId = await googleCalendar.createEvent(task);
+    if (eventId) {
+      return { ...task, gcalEventId: eventId, syncedWithGCal: true };
+    }
+  }
+  await addToSyncQueue({
+    id: generateId(),
+    operation: "create",
+    taskId: task.id,
+    taskData: task,
+    timestamp: Date.now(),
+  });
+  return task;
+}
+
+export async function syncUpdate(
+  task: TaskItem,
+  googleCalendar: any,
+  userSettings: any
+) {
+  if (!task.gcalEventId || !canGoogleSync(googleCalendar, userSettings))
+    return false;
+
+  if (typeof navigator !== "undefined" && navigator.onLine) {
+    const updated = await googleCalendar.updateEvent(task, task.gcalEventId);
+    if (updated) return true;
+  }
+  await addToSyncQueue({
+    id: generateId(),
+    operation: "update",
+    taskId: task.id,
+    taskData: task,
+    gcalEventId: task.gcalEventId,
+    timestamp: Date.now(),
+  });
+  return true;
+}
+
+export async function syncDelete(
+  gcalEventId: string | undefined,
+  taskId: string,
+  googleCalendar: any,
+  userSettings: any
+) {
+  if (!gcalEventId || !canGoogleSync(googleCalendar, userSettings))
+    return false;
+
+  if (typeof navigator !== "undefined" && navigator.onLine) {
+    const deleted = await googleCalendar.deleteEvent(gcalEventId);
+    if (deleted) return true;
+  }
+  await addToSyncQueue({
+    id: generateId(),
+    operation: "delete",
+    taskId,
+    gcalEventId,
+    timestamp: Date.now(),
+  });
+  return true;
+}
 
 export const useTaskStore = create<TaskStore>()(
   subscribeWithSelector((set, get) => ({
@@ -105,7 +178,7 @@ export const useTaskStore = create<TaskStore>()(
         set({ isLoading: true, error: null });
 
         if (!userSettings.aiEnabled || !userSettings.groqApiKey) {
-          const newTask = serializeTask({
+          let newTask = serializeTask({
             id: generateId(),
             text,
             completed: false,
@@ -113,19 +186,8 @@ export const useTaskStore = create<TaskStore>()(
             priority: userSettings.defaultPriority,
           });
 
-          if (
-            userSettings.syncWithGoogleCalendar &&
-            googleCalendar.isSignedIn &&
-            googleCalendar.hasGoogleConnected()
-          ) {
-            const eventId = await googleCalendar.createEvent(newTask);
-            if (eventId) {
-              newTask.gcalEventId = eventId;
-              newTask.syncedWithGCal = true;
-            }
-          }
-
-          get().addTask(newTask);
+          newTask = await syncCreate(newTask, googleCalendar, userSettings);
+          set((state) => ({ tasks: [...state.tasks, newTask] }));
           toast.success("Task created", { duration: 2000 });
           return;
         }
@@ -149,7 +211,7 @@ export const useTaskStore = create<TaskStore>()(
                 if (action.targetDate) {
                   taskDate = new Date(action.targetDate);
                 }
-                const newTask = serializeTask({
+                let newTask = serializeTask({
                   id: generateId(),
                   text: action.text || text,
                   completed: false,
@@ -158,18 +220,7 @@ export const useTaskStore = create<TaskStore>()(
                   priority: action.priority || userSettings.defaultPriority,
                 });
 
-                if (
-                  userSettings.syncWithGoogleCalendar &&
-                  googleCalendar.isSignedIn &&
-                  googleCalendar.hasGoogleConnected()
-                ) {
-                  const eventId = await googleCalendar.createEvent(newTask);
-                  if (eventId) {
-                    newTask.gcalEventId = eventId;
-                    newTask.syncedWithGCal = true;
-                  }
-                }
-
+                newTask = await syncCreate(newTask, googleCalendar, userSettings);
                 newTasks.push(newTask);
                 break;
               }
@@ -179,12 +230,13 @@ export const useTaskStore = create<TaskStore>()(
                   const taskToDelete = newTasks.find(
                     (task) => task.id === action.taskId
                   );
-                  if (
-                    taskToDelete &&
-                    taskToDelete.gcalEventId &&
-                    userSettings.syncWithGoogleCalendar
-                  ) {
-                    await googleCalendar.deleteEvent(taskToDelete.gcalEventId);
+                  if (taskToDelete) {
+                    await syncDelete(
+                      taskToDelete.gcalEventId,
+                      taskToDelete.id,
+                      googleCalendar,
+                      userSettings
+                    );
                   }
                   newTasks = newTasks.filter(
                     (task) => task.id !== action.taskId
@@ -211,36 +263,29 @@ export const useTaskStore = create<TaskStore>()(
 
               case "edit":
                 if (action.taskId) {
-                  newTasks = newTasks.map((task) => {
-                    if (task.id === action.taskId) {
-                      const updatedTask = serializeTask({
-                        ...task,
-                        text: action.text || task.text,
-                        date: action.targetDate
-                          ? new Date(action.targetDate)
-                          : task.date,
-                        scheduled_time:
-                          action.scheduled_time || task.scheduled_time,
-                        priority:
-                          action.priority !== undefined
-                            ? action.priority
-                            : task.priority,
-                      });
+                  newTasks = await Promise.all(
+                    newTasks.map(async (task) => {
+                      if (task.id === action.taskId) {
+                        const updatedTask = serializeTask({
+                          ...task,
+                          text: action.text || task.text,
+                          date: action.targetDate
+                            ? new Date(action.targetDate)
+                            : task.date,
+                          scheduled_time:
+                            action.scheduled_time || task.scheduled_time,
+                          priority:
+                            action.priority !== undefined
+                              ? action.priority
+                              : task.priority,
+                        });
 
-                      if (
-                        task.gcalEventId &&
-                        userSettings.syncWithGoogleCalendar
-                      ) {
-                        googleCalendar.updateEvent(
-                          updatedTask,
-                          task.gcalEventId
-                        );
+                        await syncUpdate(updatedTask, googleCalendar, userSettings);
+                        return updatedTask;
                       }
-
-                      return updatedTask;
-                    }
-                    return task;
-                  });
+                      return task;
+                    })
+                  );
                 }
                 break;
 
@@ -288,12 +333,13 @@ export const useTaskStore = create<TaskStore>()(
                       break;
                   }
 
-                  if (userSettings.syncWithGoogleCalendar) {
-                    for (const task of tasksToRemove) {
-                      if (task.gcalEventId) {
-                        await googleCalendar.deleteEvent(task.gcalEventId);
-                      }
-                    }
+                  for (const task of tasksToRemove) {
+                    await syncDelete(
+                      task.gcalEventId,
+                      task.id,
+                      googleCalendar,
+                      userSettings
+                    );
                   }
                 }
                 break;
@@ -316,8 +362,7 @@ export const useTaskStore = create<TaskStore>()(
       } catch (error) {
         console.error("AI Action failed:", error);
 
-        // Fallback: create simple task
-        const newTask = serializeTask({
+        let newTask = serializeTask({
           id: generateId(),
           text,
           completed: false,
@@ -325,21 +370,12 @@ export const useTaskStore = create<TaskStore>()(
           priority: userSettings.defaultPriority,
         });
 
-        if (
-          userSettings.syncWithGoogleCalendar &&
-          googleCalendar.isSignedIn &&
-          googleCalendar.hasGoogleConnected()
-        ) {
-          const eventId = await googleCalendar.createEvent(newTask);
-          if (eventId) {
-            newTask.gcalEventId = eventId;
-            newTask.syncedWithGCal = true;
-          }
-        }
-
-        get().addTask(newTask);
+        newTask = await syncCreate(newTask, googleCalendar, userSettings);
+        set((state) => ({
+          tasks: [...state.tasks, newTask],
+          error: "AI processing failed, created simple task instead",
+        }));
         toast.success("Task created", { duration: 2000 });
-        set({ error: "AI processing failed, created simple task instead" });
       } finally {
         set({ isLoading: false });
       }
@@ -475,21 +511,18 @@ export const useTaskStore = create<TaskStore>()(
   }))
 );
 
-// Hook to integrate IndexedDB with Zustand store
 export const useTaskStoreWithPersistence = () => {
   const store = useTaskStore();
   const [indexedTasks, setIndexedTasks, exportData, importData] = useIndexedDB<
     TaskItem[]
   >("tasks", []);
 
-  // Load initial data from IndexedDB when component mounts
   React.useEffect(() => {
     if (indexedTasks.length > 0 && store.tasks.length === 0) {
       store.setTasks(indexedTasks);
     }
   }, [indexedTasks, store]);
 
-  // Sync Zustand store changes to IndexedDB
   React.useEffect(() => {
     const unsubscribe = useTaskStore.subscribe(
       (state) => state.tasks,

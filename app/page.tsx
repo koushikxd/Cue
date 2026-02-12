@@ -5,7 +5,7 @@ import { SettingsPopover } from "@/components/settings-button";
 import { SyncPopover } from "@/components/sync-button";
 import Task from "@/components/task";
 import AiInput from "@/components/ui/ai-input";
-import { useGoogleCalendar, useMediaQuery } from "@/hooks";
+import { useGoogleCalendar, useMediaQuery, useSync } from "@/hooks";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useTaskStoreWithPersistence } from "@/stores/task-store";
 import { AnimatePresence, motion } from "motion/react";
@@ -21,6 +21,7 @@ function HomePage() {
   const { settings } = useSettingsStore();
   const { processAIActions } = useTaskStoreWithPersistence();
   const googleCalendar = useGoogleCalendar();
+  const sync = useSync();
 
   const aiDisabled = !settings.aiEnabled || !settings.groqApiKey;
 
@@ -61,6 +62,7 @@ function HomePage() {
             setIsInputVisible(true);
           }}
           isMobile={isMobile}
+          sync={sync}
         />
         <AnimatePresence>
           {isInputVisible && (
@@ -93,7 +95,7 @@ function HomePage() {
   return (
     <main className="flex flex-col w-full h-full mx-auto bg-neutral-900">
       <div className="fixed z-40 flex gap-2 top-5 right-5">
-        <SyncPopover />
+        <SyncPopover sync={sync} />
         <SettingsPopover isMobile={isMobile} />
       </div>
 

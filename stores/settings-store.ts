@@ -13,6 +13,7 @@ export interface UserSettings {
   defaultPriority: "high" | "medium" | "low" | undefined;
   defaultSortBy: SortOption;
   syncWithGoogleCalendar: boolean;
+  pullAllCalendarEvents: boolean;
 }
 
 export const defaultSettings: UserSettings = {
@@ -25,6 +26,7 @@ export const defaultSettings: UserSettings = {
   defaultPriority: undefined,
   defaultSortBy: "newest",
   syncWithGoogleCalendar: true,
+  pullAllCalendarEvents: false,
 };
 
 interface SettingsState {
@@ -60,7 +62,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: "user-settings",
-      version: 3,
+      version: 4,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as { settings: UserSettings };
         if (version < 2) {
@@ -68,6 +70,9 @@ export const useSettingsStore = create<SettingsStore>()(
         }
         if (version < 3) {
           state.settings = { ...state.settings, defaultModel: "llama-3.1-8b" };
+        }
+        if (version < 4) {
+          state.settings = { ...state.settings, pullAllCalendarEvents: false };
         }
         return state;
       },
