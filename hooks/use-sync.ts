@@ -3,11 +3,16 @@ import { useGoogleCalendar } from "./use-google-calendar";
 import { useTaskStore } from "@/stores/task-store";
 import { useSettingsStore } from "@/stores/settings-store";
 
-import { getSyncQueue, removeSyncQueueItem } from "./use-indexed-db";
+import {
+  getSyncQueue,
+  removeSyncQueueItem,
+  updateSyncQueueItem,
+} from "./use-indexed-db";
 import { serializeTask } from "@/lib/utils/task";
 import { toast } from "sonner";
 
 const generateId = () => Math.random().toString(36).substring(7);
+const MAX_SYNC_RETRIES = 3;
 
 export function useSync() {
   const [isOnline, setIsOnline] = useState(
@@ -18,12 +23,19 @@ export function useSync() {
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const isFlushing = useRef(false);
 
-  const googleCalendar = useGoogleCalendar();
+  const {
+    isSignedIn,
+    hasGoogleConnected,
+    createEvent,
+    updateEvent,
+    deleteEvent,
+    fetchEvents,
+  } = useGoogleCalendar();
   const { settings } = useSettingsStore();
 
   const canSync =
-    googleCalendar.isSignedIn &&
-    googleCalendar.hasGoogleConnected() &&
+    isSignedIn &&
+    hasGoogleConnected() &&
     settings.syncWithGoogleCalendar;
 
   const refreshPendingCount = useCallback(async () => {
@@ -53,64 +65,91 @@ export function useSync() {
   }, []);
 
   const flushQueue = useCallback(async () => {
-    if (isFlushing.current || !canSync) return 0;
+    if (isFlushing.current || !canSync) {
+      return { processed: 0, retrying: 0, dropped: 0 };
+    }
     isFlushing.current = true;
 
     try {
       const queue = await getSyncQueue();
-      if (queue.length === 0) return 0;
+      if (queue.length === 0) {
+        return { processed: 0, retrying: 0, dropped: 0 };
+      }
 
       let processed = 0;
+      let retrying = 0;
+      let dropped = 0;
       const currentTasks = useTaskStore.getState().tasks;
       const updatedTasks = [...currentTasks];
 
       for (const item of queue) {
         try {
-          let success = false;
+          let result: { success: boolean; retryable: boolean; message?: string } = {
+            success: false,
+            retryable: true,
+            message: "Unknown sync failure",
+          };
           switch (item.operation) {
             case "create": {
               if (!item.taskData) {
-                success = true;
+                result = { success: true, retryable: false, message: "" };
                 break;
               }
-              const eventId = await googleCalendar.createEvent(item.taskData);
-              if (eventId) {
+              const createResult = await createEvent(item.taskData, { silent: true });
+              result = createResult;
+              if (createResult.success && createResult.eventId) {
                 const idx = updatedTasks.findIndex((t) => t.id === item.taskId);
                 if (idx !== -1) {
                   updatedTasks[idx] = {
                     ...updatedTasks[idx],
-                    gcalEventId: eventId,
+                    gcalEventId: createResult.eventId,
                     syncedWithGCal: true,
                   };
                 }
-                success = true;
               }
               break;
             }
             case "update": {
               if (!item.taskData || !item.gcalEventId) {
-                success = true;
+                result = { success: true, retryable: false, message: "" };
                 break;
               }
-              success = await googleCalendar.updateEvent(
+              result = await updateEvent(
                 item.taskData,
-                item.gcalEventId
+                item.gcalEventId,
+                { silent: true }
               );
               break;
             }
             case "delete": {
               if (!item.gcalEventId) {
-                success = true;
+                result = { success: true, retryable: false, message: "" };
                 break;
               }
-              success = await googleCalendar.deleteEvent(item.gcalEventId);
+              result = await deleteEvent(item.gcalEventId, { silent: true });
               break;
             }
           }
-          if (success) {
+
+          if (result.success) {
             await removeSyncQueueItem(item.id);
             processed++;
+            continue;
           }
+
+          const nextRetryCount = (item.retryCount ?? 0) + 1;
+          if (!result.retryable || nextRetryCount >= MAX_SYNC_RETRIES) {
+            await removeSyncQueueItem(item.id);
+            dropped++;
+            continue;
+          }
+
+          await updateSyncQueueItem(item.id, {
+            retryCount: nextRetryCount,
+            lastError: result.message,
+            timestamp: Date.now(),
+          });
+          retrying++;
         } catch (error) {
           console.error("Failed to process sync queue item:", error);
         }
@@ -121,17 +160,17 @@ export function useSync() {
       }
 
       await refreshPendingCount();
-      return processed;
+      return { processed, retrying, dropped };
     } finally {
       isFlushing.current = false;
     }
-  }, [canSync, googleCalendar, refreshPendingCount]);
+  }, [canSync, createEvent, deleteEvent, refreshPendingCount, updateEvent]);
 
   const pullFromCalendar = useCallback(async () => {
     if (!canSync) return 0;
 
     try {
-      const remoteEvents = await googleCalendar.fetchEvents(
+      const remoteEvents = await fetchEvents(
         settings.pullAllCalendarEvents
       );
       if (!remoteEvents || remoteEvents.length === 0) return 0;
@@ -191,7 +230,7 @@ export function useSync() {
       console.error("Failed to pull from calendar:", error);
       return 0;
     }
-  }, [canSync, googleCalendar, settings.pullAllCalendarEvents]);
+  }, [canSync, fetchEvents, settings.pullAllCalendarEvents]);
 
   const syncNow = useCallback(async () => {
     if (!canSync || !isOnline) return;
@@ -202,9 +241,15 @@ export function useSync() {
       const pulled = await pullFromCalendar();
       setLastSyncTime(new Date());
 
-      if (flushed > 0 || pulled > 0) {
+      if (flushed.retrying > 0) {
+        toast.error(`${flushed.retrying} sync change(s) will retry`, {
+          duration: 2000,
+        });
+      }
+
+      if (flushed.processed > 0 || pulled > 0 || flushed.dropped > 0) {
         toast.success(
-          `Synced${flushed > 0 ? ` - ${flushed} pushed` : ""}${pulled > 0 ? ` - ${pulled} pulled` : ""}`,
+          `Synced${flushed.processed > 0 ? ` - ${flushed.processed} pushed` : ""}${pulled > 0 ? ` - ${pulled} pulled` : ""}${flushed.dropped > 0 ? ` - ${flushed.dropped} dropped` : ""}`,
           { duration: 2000 }
         );
       } else {

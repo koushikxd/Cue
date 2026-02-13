@@ -53,6 +53,23 @@ class AppDatabase extends Dexie {
       syncQueue: "id, operation, taskId, timestamp",
     });
 
+    this.version(4)
+      .stores({
+        tasks:
+          "id, text, completed, date, created_at, updated_at, scheduled_time, priority, gcalEventId, syncedWithGCal",
+        syncQueue: "id, operation, taskId, timestamp",
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table("syncQueue")
+          .toCollection()
+          .modify((item: SyncQueueItem) => {
+            if (typeof item.retryCount !== "number") {
+              item.retryCount = 0;
+            }
+          });
+      });
+
     this.tasks = this.table("tasks");
     this.syncQueue = this.table("syncQueue");
   }
@@ -61,7 +78,10 @@ class AppDatabase extends Dexie {
 export const db = new AppDatabase();
 
 export async function addToSyncQueue(item: SyncQueueItem) {
-  await db.syncQueue.put(item);
+  await db.syncQueue.put({
+    ...item,
+    retryCount: item.retryCount ?? 0,
+  });
 }
 
 export async function getSyncQueue(): Promise<SyncQueueItem[]> {
@@ -74,6 +94,52 @@ export async function clearSyncQueue() {
 
 export async function removeSyncQueueItem(id: string) {
   await db.syncQueue.delete(id);
+}
+
+export async function updateSyncQueueItem(
+  id: string,
+  updates: Partial<SyncQueueItem>
+) {
+  await db.syncQueue.update(id, updates);
+}
+
+export async function addOrReplaceSyncQueueItem(item: SyncQueueItem) {
+  const normalizedItem: SyncQueueItem = {
+    ...item,
+    retryCount: item.retryCount ?? 0,
+  };
+  const existingItems = await db.syncQueue.where("taskId").equals(item.taskId).toArray();
+
+  if (existingItems.length === 0) {
+    await db.syncQueue.put(normalizedItem);
+    return;
+  }
+
+  const existingCreate = existingItems.find((entry) => entry.operation === "create");
+
+  if (item.operation === "update" && existingCreate) {
+    await db.syncQueue.update(existingCreate.id, {
+      taskData: item.taskData,
+      timestamp: item.timestamp,
+      lastError: undefined,
+    });
+    return;
+  }
+
+  if (item.operation === "delete") {
+    if (existingCreate) {
+      await db.syncQueue.delete(existingCreate.id);
+      const remaining = existingItems.filter((entry) => entry.id !== existingCreate.id);
+      await Promise.all(remaining.map((entry) => db.syncQueue.delete(entry.id)));
+      return;
+    }
+    await Promise.all(existingItems.map((entry) => db.syncQueue.delete(entry.id)));
+    await db.syncQueue.put(normalizedItem);
+    return;
+  }
+
+  await Promise.all(existingItems.map((entry) => db.syncQueue.delete(entry.id)));
+  await db.syncQueue.put(normalizedItem);
 }
 
 export function useIndexedDB<T>(storeName: string, initialValue: T) {

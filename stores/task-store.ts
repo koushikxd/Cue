@@ -1,5 +1,5 @@
 import { determineAction } from "@/app/actions";
-import { useIndexedDB, addToSyncQueue } from "@/hooks/use-indexed-db";
+import { useIndexedDB, addOrReplaceSyncQueueItem } from "@/hooks/use-indexed-db";
 import { serializeTask } from "@/lib/utils/task";
 import { TaskItem } from "@/types";
 import { format } from "date-fns";
@@ -54,12 +54,15 @@ export async function syncCreate(
   if (!canGoogleSync(googleCalendar, userSettings)) return task;
 
   if (typeof navigator !== "undefined" && navigator.onLine) {
-    const eventId = await googleCalendar.createEvent(task);
-    if (eventId) {
-      return { ...task, gcalEventId: eventId, syncedWithGCal: true };
+    const result = await googleCalendar.createEvent(task);
+    if (result.success && result.eventId) {
+      return { ...task, gcalEventId: result.eventId, syncedWithGCal: true };
+    }
+    if (!result.retryable) {
+      return task;
     }
   }
-  await addToSyncQueue({
+  await addOrReplaceSyncQueueItem({
     id: generateId(),
     operation: "create",
     taskId: task.id,
@@ -78,10 +81,11 @@ export async function syncUpdate(
     return false;
 
   if (typeof navigator !== "undefined" && navigator.onLine) {
-    const updated = await googleCalendar.updateEvent(task, task.gcalEventId);
-    if (updated) return true;
+    const result = await googleCalendar.updateEvent(task, task.gcalEventId);
+    if (result.success) return true;
+    if (!result.retryable) return false;
   }
-  await addToSyncQueue({
+  await addOrReplaceSyncQueueItem({
     id: generateId(),
     operation: "update",
     taskId: task.id,
@@ -102,10 +106,11 @@ export async function syncDelete(
     return false;
 
   if (typeof navigator !== "undefined" && navigator.onLine) {
-    const deleted = await googleCalendar.deleteEvent(gcalEventId);
-    if (deleted) return true;
+    const result = await googleCalendar.deleteEvent(gcalEventId);
+    if (result.success) return true;
+    if (!result.retryable) return false;
   }
-  await addToSyncQueue({
+  await addOrReplaceSyncQueueItem({
     id: generateId(),
     operation: "delete",
     taskId,

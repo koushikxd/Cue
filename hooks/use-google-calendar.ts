@@ -9,6 +9,7 @@ interface GoogleCalendarEvent {
   id?: string;
   summary: string;
   description: string;
+  status?: "confirmed" | "cancelled";
   start: {
     dateTime?: string;
     date?: string;
@@ -19,6 +20,17 @@ interface GoogleCalendarEvent {
     date?: string;
     timeZone?: string;
   };
+}
+
+export interface GoogleSyncResult {
+  success: boolean;
+  retryable: boolean;
+  eventId?: string;
+  message?: string;
+}
+
+interface SyncRequestOptions {
+  silent?: boolean;
 }
 
 interface GCalEventResponse {
@@ -38,6 +50,23 @@ interface GCalEventResponse {
     timeZone?: string;
   };
 }
+
+const RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+const isPermanentGoogleError = (message: string) => {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("event type cannot be changed") ||
+    normalized.includes("cannot be changed") ||
+    normalized.includes("not found")
+  );
+};
+
+const isRetryableStatusCode = (status: number) =>
+  RETRYABLE_STATUS_CODES.has(status);
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 
 function eventToTask(event: GCalEventResponse): Omit<TaskItem, "id"> & { gcalEventId: string; gcalUpdated: string } {
   const description = event.description || "";
@@ -152,6 +181,7 @@ export function useGoogleCalendar() {
       return {
         summary: task.text,
         description,
+        status: task.completed ? "cancelled" : "confirmed",
         start: {
           dateTime: startDateTime.toISOString(),
           timeZone: timezone,
@@ -170,6 +200,7 @@ export function useGoogleCalendar() {
     return {
       summary: task.text,
       description,
+      status: task.completed ? "cancelled" : "confirmed",
       start: {
         date: startDate.toISOString().split("T")[0],
       },
@@ -180,13 +211,24 @@ export function useGoogleCalendar() {
   }, []);
 
   const createEvent = useCallback(
-    async (task: TaskItem): Promise<string | null> => {
-      if (!isSignedIn || !hasGoogleConnected()) return null;
+    async (
+      task: TaskItem,
+      options?: SyncRequestOptions
+    ): Promise<GoogleSyncResult> => {
+      if (!isSignedIn || !hasGoogleConnected()) {
+        return { success: false, retryable: false, message: "Google account not connected" };
+      }
 
       try {
         setIsSyncing(true);
         const token = await getGoogleToken();
-        if (!token) throw new Error("Failed to get Google Calendar token");
+        if (!token) {
+          return {
+            success: false,
+            retryable: false,
+            message: "Failed to get Google Calendar token",
+          };
+        }
 
         const event = taskToEvent(task);
         const response = await fetch(
@@ -202,18 +244,30 @@ export function useGoogleCalendar() {
         );
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error?.message || "Failed to create event");
+          const error = await response.json().catch(() => ({}));
+          const message = error.error?.message || "Failed to create event";
+          const retryable =
+            isRetryableStatusCode(response.status) &&
+            !isPermanentGoogleError(message);
+          if (!options?.silent) {
+            toast.error("Failed to sync with Google Calendar", {
+              description: message,
+            });
+          }
+          return { success: false, retryable, message };
         }
 
         const result = await response.json();
-        return result.id;
+        return { success: true, retryable: false, eventId: result.id };
       } catch (error) {
         console.error("Error creating Google Calendar event:", error);
-        toast.error("Failed to sync with Google Calendar", {
-          description: error instanceof Error ? error.message : "Unknown error",
-        });
-        return null;
+        const message = getErrorMessage(error, "Unknown error");
+        if (!options?.silent) {
+          toast.error("Failed to sync with Google Calendar", {
+            description: message,
+          });
+        }
+        return { success: false, retryable: true, message };
       } finally {
         setIsSyncing(false);
       }
@@ -222,39 +276,70 @@ export function useGoogleCalendar() {
   );
 
   const updateEvent = useCallback(
-    async (task: TaskItem, eventId: string): Promise<boolean> => {
-      if (!isSignedIn || !hasGoogleConnected() || !eventId) return false;
+    async (
+      task: TaskItem,
+      eventId: string,
+      options?: SyncRequestOptions
+    ): Promise<GoogleSyncResult> => {
+      if (!isSignedIn || !hasGoogleConnected() || !eventId) {
+        return { success: false, retryable: false, message: "Google account not connected" };
+      }
 
       try {
         setIsSyncing(true);
         const token = await getGoogleToken();
-        if (!token) throw new Error("Failed to get Google Calendar token");
+        if (!token) {
+          return {
+            success: false,
+            retryable: false,
+            message: "Failed to get Google Calendar token",
+          };
+        }
 
         const event = taskToEvent(task);
+        const patchBody: Partial<GoogleCalendarEvent> = {
+          summary: event.summary,
+          description: event.description,
+          start: event.start,
+          end: event.end,
+          status: task.completed ? "cancelled" : "confirmed",
+        };
         const response = await fetch(
           `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
           {
-            method: "PUT",
+            method: "PATCH",
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify(event),
+            body: JSON.stringify(patchBody),
           }
         );
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error?.message || "Failed to update event");
+          const error = await response.json().catch(() => ({}));
+          const message = error.error?.message || "Failed to update event";
+          const retryable =
+            isRetryableStatusCode(response.status) &&
+            !isPermanentGoogleError(message);
+          if (!options?.silent) {
+            toast.error("Failed to update Google Calendar event", {
+              description: message,
+            });
+          }
+          return { success: false, retryable, message };
         }
 
-        return true;
+        return { success: true, retryable: false };
       } catch (error) {
         console.error("Error updating Google Calendar event:", error);
-        toast.error("Failed to update Google Calendar event", {
-          description: error instanceof Error ? error.message : "Unknown error",
-        });
-        return false;
+        const message = getErrorMessage(error, "Unknown error");
+        if (!options?.silent) {
+          toast.error("Failed to update Google Calendar event", {
+            description: message,
+          });
+        }
+        return { success: false, retryable: true, message };
       } finally {
         setIsSyncing(false);
       }
@@ -263,13 +348,24 @@ export function useGoogleCalendar() {
   );
 
   const deleteEvent = useCallback(
-    async (eventId: string): Promise<boolean> => {
-      if (!isSignedIn || !hasGoogleConnected() || !eventId) return false;
+    async (
+      eventId: string,
+      options?: SyncRequestOptions
+    ): Promise<GoogleSyncResult> => {
+      if (!isSignedIn || !hasGoogleConnected() || !eventId) {
+        return { success: false, retryable: false, message: "Google account not connected" };
+      }
 
       try {
         setIsSyncing(true);
         const token = await getGoogleToken();
-        if (!token) throw new Error("Failed to get Google Calendar token");
+        if (!token) {
+          return {
+            success: false,
+            retryable: false,
+            message: "Failed to get Google Calendar token",
+          };
+        }
 
         const response = await fetch(
           `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
@@ -284,17 +380,29 @@ export function useGoogleCalendar() {
           response.status !== 404 &&
           response.status !== 410
         ) {
-          const error = await response.json();
-          throw new Error(error.error?.message || "Failed to delete event");
+          const error = await response.json().catch(() => ({}));
+          const message = error.error?.message || "Failed to delete event";
+          const retryable =
+            isRetryableStatusCode(response.status) &&
+            !isPermanentGoogleError(message);
+          if (!options?.silent) {
+            toast.error("Failed to delete Google Calendar event", {
+              description: message,
+            });
+          }
+          return { success: false, retryable, message };
         }
 
-        return true;
+        return { success: true, retryable: false };
       } catch (error) {
         console.error("Error deleting Google Calendar event:", error);
-        toast.error("Failed to delete Google Calendar event", {
-          description: error instanceof Error ? error.message : "Unknown error",
-        });
-        return false;
+        const message = getErrorMessage(error, "Unknown error");
+        if (!options?.silent) {
+          toast.error("Failed to delete Google Calendar event", {
+            description: message,
+          });
+        }
+        return { success: false, retryable: true, message };
       } finally {
         setIsSyncing(false);
       }

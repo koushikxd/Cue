@@ -19,6 +19,8 @@ export interface SyncQueueItem {
   taskData?: TaskItem;
   gcalEventId?: string;
   timestamp: number;
+  retryCount?: number;
+  lastError?: string;
 }
 
 export type SortOption =
