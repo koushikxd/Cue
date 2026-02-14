@@ -22,21 +22,22 @@ export function useSync() {
   const [pendingCount, setPendingCount] = useState(0);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const isFlushing = useRef(false);
+  const hasSyncedForCurrentOnlineSession = useRef(false);
 
-  const {
-    isSignedIn,
-    hasGoogleConnected,
-    createEvent,
-    updateEvent,
-    deleteEvent,
-    fetchEvents,
-  } = useGoogleCalendar();
+  const googleCalendar = useGoogleCalendar();
   const { settings } = useSettingsStore();
 
   const canSync =
-    isSignedIn &&
-    hasGoogleConnected() &&
+    googleCalendar.isSignedIn &&
+    googleCalendar.hasGoogleConnected() &&
     settings.syncWithGoogleCalendar;
+
+  const canSyncRef = useRef(canSync);
+  canSyncRef.current = canSync;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const googleCalendarRef = useRef(googleCalendar);
+  googleCalendarRef.current = googleCalendar;
 
   const refreshPendingCount = useCallback(async () => {
     try {
@@ -65,10 +66,12 @@ export function useSync() {
   }, []);
 
   const flushQueue = useCallback(async () => {
-    if (isFlushing.current || !canSync) {
+    if (isFlushing.current || !canSyncRef.current) {
       return { processed: 0, retrying: 0, dropped: 0 };
     }
     isFlushing.current = true;
+
+    const gcal = googleCalendarRef.current;
 
     try {
       const queue = await getSyncQueue();
@@ -95,7 +98,7 @@ export function useSync() {
                 result = { success: true, retryable: false, message: "" };
                 break;
               }
-              const createResult = await createEvent(item.taskData, { silent: true });
+              const createResult = await gcal.createEvent(item.taskData, { silent: true });
               result = createResult;
               if (createResult.success && createResult.eventId) {
                 const idx = updatedTasks.findIndex((t) => t.id === item.taskId);
@@ -114,7 +117,7 @@ export function useSync() {
                 result = { success: true, retryable: false, message: "" };
                 break;
               }
-              result = await updateEvent(
+              result = await gcal.updateEvent(
                 item.taskData,
                 item.gcalEventId,
                 { silent: true }
@@ -126,7 +129,7 @@ export function useSync() {
                 result = { success: true, retryable: false, message: "" };
                 break;
               }
-              result = await deleteEvent(item.gcalEventId, { silent: true });
+              result = await gcal.deleteEvent(item.gcalEventId, { silent: true });
               break;
             }
           }
@@ -164,15 +167,16 @@ export function useSync() {
     } finally {
       isFlushing.current = false;
     }
-  }, [canSync, createEvent, deleteEvent, refreshPendingCount, updateEvent]);
+  }, [refreshPendingCount]);
 
   const pullFromCalendar = useCallback(async () => {
-    if (!canSync) return 0;
+    if (!canSyncRef.current) return 0;
+
+    const gcal = googleCalendarRef.current;
+    const pullAll = settingsRef.current.pullAllCalendarEvents;
 
     try {
-      const remoteEvents = await fetchEvents(
-        settings.pullAllCalendarEvents
-      );
+      const remoteEvents = await gcal.fetchEvents(pullAll);
       if (!remoteEvents || remoteEvents.length === 0) return 0;
 
       const currentTasks = useTaskStore.getState().tasks;
@@ -193,6 +197,7 @@ export function useSync() {
             updatedTasks[localIdx] = serializeTask({
               ...local,
               text: remote.text,
+              completed: remote.completed,
               date: remote.date,
               scheduled_time: remote.scheduled_time,
               priority: remote.priority,
@@ -230,10 +235,20 @@ export function useSync() {
       console.error("Failed to pull from calendar:", error);
       return 0;
     }
-  }, [canSync, fetchEvents, settings.pullAllCalendarEvents]);
+  }, []);
 
   const syncNow = useCallback(async () => {
-    if (!canSync || !isOnline) return;
+    if (!isOnline) {
+      toast.error("You're offline", { duration: 1500 });
+      return;
+    }
+    if (!canSyncRef.current) {
+      toast.error("Sync not available", {
+        description: "Sign in and connect Google Calendar to sync",
+        duration: 2000,
+      });
+      return;
+    }
     setIsSyncing(true);
 
     try {
@@ -262,10 +277,15 @@ export function useSync() {
       setIsSyncing(false);
       await refreshPendingCount();
     }
-  }, [canSync, isOnline, flushQueue, pullFromCalendar, refreshPendingCount]);
+  }, [isOnline, flushQueue, pullFromCalendar, refreshPendingCount]);
 
   useEffect(() => {
-    if (!isOnline || !canSync) return;
+    if (!isOnline || !canSync) {
+      hasSyncedForCurrentOnlineSession.current = false;
+      return;
+    }
+    if (hasSyncedForCurrentOnlineSession.current) return;
+    hasSyncedForCurrentOnlineSession.current = true;
 
     const timeout = setTimeout(async () => {
       setIsSyncing(true);

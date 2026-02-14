@@ -251,18 +251,26 @@ export const useTaskStore = create<TaskStore>()(
 
               case "mark":
                 if (action.taskId) {
-                  newTasks = newTasks.map((task) => {
-                    if (task.id === action.taskId) {
+                  newTasks = await Promise.all(
+                    newTasks.map(async (task) => {
+                      if (task.id !== action.taskId) return task;
                       const completed =
                         action.status === "complete"
                           ? true
                           : action.status === "incomplete"
-                          ? false
-                          : !task.completed;
-                      return { ...task, completed, updated_at: new Date() };
-                    }
-                    return task;
-                  });
+                            ? false
+                            : !task.completed;
+                      const updatedTask = serializeTask({
+                        ...task,
+                        completed,
+                        updated_at: new Date(),
+                      });
+                      if (task.gcalEventId) {
+                        await syncUpdate(updatedTask, googleCalendar, userSettings);
+                      }
+                      return updatedTask;
+                    })
+                  );
                 }
                 break;
 

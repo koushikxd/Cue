@@ -138,7 +138,7 @@ export function SyncPopover({
                 variant="ghost"
                 size="sm"
                 onClick={handleSyncNow}
-                disabled={sync.isSyncing || !sync.isOnline}
+                disabled={sync.isSyncing}
                 className="justify-start w-full h-8 gap-2 px-2 text-xs font-normal hover:cursor-pointer text-neutral-300 hover:text-foreground hover:bg-accent/30 disabled:opacity-50"
               >
                 <CloudArrowDown weight="light" className="size-4" />

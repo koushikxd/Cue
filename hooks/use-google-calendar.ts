@@ -4,12 +4,12 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
 const CUE_MARKER = "[cue]";
+const CUE_DONE_MARKER = "[done]";
 
 interface GoogleCalendarEvent {
   id?: string;
   summary: string;
   description: string;
-  status?: "confirmed" | "cancelled";
   start: {
     dateTime?: string;
     date?: string;
@@ -70,7 +70,8 @@ const getErrorMessage = (error: unknown, fallback: string) =>
 
 function eventToTask(event: GCalEventResponse): Omit<TaskItem, "id"> & { gcalEventId: string; gcalUpdated: string } {
   const description = event.description || "";
-  const cleanDesc = description.replace(CUE_MARKER, "").trim();
+  const isCompleted = description.includes(CUE_DONE_MARKER);
+  const cleanDesc = description.replace(CUE_MARKER, "").replace(CUE_DONE_MARKER, "").trim();
 
   let priority: TaskItem["priority"] = undefined;
   let taskDescription = cleanDesc;
@@ -96,7 +97,7 @@ function eventToTask(event: GCalEventResponse): Omit<TaskItem, "id"> & { gcalEve
 
   return {
     text: event.summary || "Untitled",
-    completed: event.status === "cancelled",
+    completed: isCompleted,
     date,
     scheduled_time,
     priority,
@@ -123,7 +124,8 @@ export function useGoogleCalendar() {
     );
   }, [isSignedIn, user]);
 
-  const getGoogleToken = useCallback(async (): Promise<string | null> => {
+  const getGoogleToken = useCallback(
+    async (options?: SyncRequestOptions): Promise<string | null> => {
     if (!isSignedIn || !user) return null;
 
     try {
@@ -134,9 +136,11 @@ export function useGoogleCalendar() {
       );
 
       if (!googleAccount) {
+        if (!options?.silent) {
         toast.error("Google account not connected", {
           description: "Please connect your Google account in settings",
         });
+        }
         return null;
       }
       const response = await fetch(`/api/get-oauth-token?provider=google`);
@@ -150,12 +154,16 @@ export function useGoogleCalendar() {
       return data.token;
     } catch (error) {
       console.error("Failed to get Google token:", error);
-      toast.error("Failed to get Google Calendar access", {
-        description: error instanceof Error ? error.message : "Unknown error",
-      });
+      if (!options?.silent) {
+        toast.error("Failed to get Google Calendar access", {
+          description: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
       return null;
     }
-  }, [isSignedIn, user]);
+    },
+    [isSignedIn, user]
+  );
 
   const taskToEvent = useCallback((task: TaskItem): GoogleCalendarEvent => {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -166,6 +174,9 @@ export function useGoogleCalendar() {
     }
     if (task.description) {
       descriptionParts.push(task.description);
+    }
+    if (task.completed) {
+      descriptionParts.push(CUE_DONE_MARKER);
     }
     descriptionParts.push(CUE_MARKER);
     const description = descriptionParts.join("\n\n");
@@ -181,7 +192,6 @@ export function useGoogleCalendar() {
       return {
         summary: task.text,
         description,
-        status: task.completed ? "cancelled" : "confirmed",
         start: {
           dateTime: startDateTime.toISOString(),
           timeZone: timezone,
@@ -200,7 +210,6 @@ export function useGoogleCalendar() {
     return {
       summary: task.text,
       description,
-      status: task.completed ? "cancelled" : "confirmed",
       start: {
         date: startDate.toISOString().split("T")[0],
       },
@@ -221,7 +230,7 @@ export function useGoogleCalendar() {
 
       try {
         setIsSyncing(true);
-        const token = await getGoogleToken();
+        const token = await getGoogleToken(options);
         if (!token) {
           return {
             success: false,
@@ -287,7 +296,7 @@ export function useGoogleCalendar() {
 
       try {
         setIsSyncing(true);
-        const token = await getGoogleToken();
+        const token = await getGoogleToken(options);
         if (!token) {
           return {
             success: false,
@@ -302,7 +311,6 @@ export function useGoogleCalendar() {
           description: event.description,
           start: event.start,
           end: event.end,
-          status: task.completed ? "cancelled" : "confirmed",
         };
         const response = await fetch(
           `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
@@ -358,7 +366,7 @@ export function useGoogleCalendar() {
 
       try {
         setIsSyncing(true);
-        const token = await getGoogleToken();
+        const token = await getGoogleToken(options);
         if (!token) {
           return {
             success: false,

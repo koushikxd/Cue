@@ -169,14 +169,23 @@ export default function Task({ isMobile = false, onDateChange }: TaskProps) {
       const task = tasks.find((t) => t.id === id);
       if (!task) return;
 
-      // If auto-remove is enabled and task is being completed, delete it instead
       if (settings.autoRemoveCompleted && !task.completed) {
         await handleDeleteTask(id);
       } else {
+        const updatedTask = {
+          ...task,
+          completed: !task.completed,
+          updated_at: new Date(),
+        };
+
+        if (task.gcalEventId) {
+          await syncUpdate(updatedTask, googleCalendar, settings);
+        }
+
         await toggleTask(id);
       }
     },
-    [toggleTask, tasks, settings.autoRemoveCompleted, handleDeleteTask]
+    [toggleTask, tasks, settings, googleCalendar, handleDeleteTask]
   );
 
   const startEditing = useCallback((id: string, text: string) => {
